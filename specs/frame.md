@@ -176,3 +176,9 @@ Case: MaxFrameSize 64, MaxHeaderBytes 48 and a 71-octet header section without i
 
 Assumed: A Decoder keeps its largest read buffer, at most max(MaxFrameSize, 4096) octets, for its lifetime, including across Reset.
 Case: one 1 MiB frame, then 64-octet frames: the buffer stays about 1 MiB and later large frames allocate nothing in the decoder.
+
+## FRM-36 Allocation ahead of a declared length
+
+Rule: When a frame's declared length does not fit the buffer, each growth reaches the frame's length, limited to the larger of twice the buffer and the octets received plus 4 MiB, and never past max(MaxFrameSize, 4096).
+Case: MaxFrameSize(math.MaxInt) and a SEND declaring content-length:1000000000000000000 whose first 5000 body octets arrive: the buffer grows to about 4 MiB, not to the declared length, and EOF then gives io.ErrUnexpectedEOF. With the default limits, a SEND declaring 4194000 octets of which 4 KiB arrive makes the decoder allocate about 4 MiB.
+Rejected: Allocating only as octets arrive, which copies a large frame once per doubling | Growing to the declared length without a bound, which lets a declared length force an allocation as large as MaxFrameSize allows, without limit when MaxFrameSize is unlimited

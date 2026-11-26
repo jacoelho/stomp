@@ -63,11 +63,14 @@ type chunkReader struct {
 func (r *chunkReader) Read(p []byte) (int, error) { return r.r.Read(p[:min(len(p), r.max)]) }
 
 func BenchmarkReadFrameChunked(b *testing.B) {
-	for _, size := range []int{4096, 1 << 20} {
-		b.Run(fmt.Sprint(size), func(b *testing.B) {
-			f := benchFrame(size)
+	for _, sizes := range [][]int{{4096}, {700 << 10}, {1<<20 - 4096}, {1 << 20}, {3 << 19}, {64, 700 << 10, 4096, 3 << 19}} {
+		b.Run(fmt.Sprint(sizes), func(b *testing.B) {
+			var f []byte
+			for _, size := range sizes {
+				f = append(f, benchFrame(size)...)
+			}
 			dec := stomptext.NewDecoder(&chunkReader{r: repeatReader{b: f}, max: 64 << 10})
-			b.SetBytes(int64(len(f)))
+			b.SetBytes(int64(len(f) / len(sizes)))
 			b.ReportAllocs()
 			for b.Loop() {
 				if _, err := dec.ReadFrame(); err != nil {

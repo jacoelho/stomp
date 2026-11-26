@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -814,5 +815,23 @@ func TestDecoderReadErrorIsSticky(t *testing.T) {
 	}
 	if r.reads != 1 {
 		t.Errorf("decoder read %d times; want 1, no read after the error (FRM-22)", r.reads)
+	}
+}
+
+func TestReadFrameWithADeclaredLengthBeyondTheInputFailsWithUnexpectedEOF(t *testing.T) {
+	for name, tt := range map[string]struct {
+		limit  int
+		length string
+	}{
+		"unlimited frame size":  {math.MaxInt, "1000000000000000000"},
+		"length near the limit": {4 << 20, "4194000"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			in := "SEND\ncontent-length:" + tt.length + "\n\n" + strings.Repeat("x", 5000)
+			_, err := stomptext.NewDecoder(strings.NewReader(in), stomptext.MaxFrameSize(tt.limit)).ReadFrame()
+			if !errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Errorf("ReadFrame of a SEND declaring %s octets with 5000 present, MaxFrameSize(%d): err = %v; want io.ErrUnexpectedEOF", tt.length, tt.limit, err)
+			}
+		})
 	}
 }

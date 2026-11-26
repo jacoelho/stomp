@@ -53,6 +53,31 @@ func BenchmarkReadFrame(b *testing.B) {
 	}
 }
 
+// chunkReader returns at most max octets per Read, as a socket returns what
+// its receive buffer holds rather than filling the caller's buffer.
+type chunkReader struct {
+	r   repeatReader
+	max int
+}
+
+func (r *chunkReader) Read(p []byte) (int, error) { return r.r.Read(p[:min(len(p), r.max)]) }
+
+func BenchmarkReadFrameChunked(b *testing.B) {
+	for _, size := range []int{4096, 1 << 20} {
+		b.Run(fmt.Sprint(size), func(b *testing.B) {
+			f := benchFrame(size)
+			dec := stomptext.NewDecoder(&chunkReader{r: repeatReader{b: f}, max: 64 << 10})
+			b.SetBytes(int64(len(f)))
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := dec.ReadFrame(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkAppendAck(b *testing.B) {
 	hs := stomptext.Headers{{Name: "id", Value: "ID:artemis-12345-1"}}
 	buf := make([]byte, 0, 4096)

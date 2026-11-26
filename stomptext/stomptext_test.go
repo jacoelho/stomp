@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -864,6 +865,9 @@ func TestReadFrameWithADeclaredLengthBeyondTheInputFailsWithUnexpectedEOF(t *tes
 		"length near the limit": {4 << 20, "4194000"},
 	} {
 		t.Run(name, func(t *testing.T) {
+			if tt.limit == math.MaxInt && strconv.IntSize < 64 {
+				t.Skip("a content-length of 10^18 saturates to MaxInt and fails as too large")
+			}
 			in := "SEND\ncontent-length:" + tt.length + "\n\n" + strings.Repeat("x", 5000)
 			_, err := stomptext.NewDecoder(strings.NewReader(in), stomptext.MaxFrameSize(tt.limit)).ReadFrame()
 			if !errors.Is(err, io.ErrUnexpectedEOF) {

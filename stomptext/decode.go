@@ -11,6 +11,10 @@ import (
 
 const minReadSize = 4096
 
+// growAhead is how far beyond the octets received one growth may reach for a
+// frame whose declared length is not yet buffered (specs/frame.md FRM-36).
+const growAhead = 4 << 20
+
 // Decoder reads frames from a stream. Octets that follow a frame in the same
 // read are kept for the next ReadFrame, and end-of-line octets between frames
 // (heart-beats) are skipped.
@@ -201,7 +205,12 @@ func (d *Decoder) makeRoom() {
 	if d.end+minReadSize/2 <= len(d.buf) {
 		return
 	}
-	size := min(max(2*len(d.buf), minReadSize), max(d.lim.MaxFrameSize, minReadSize))
+	size := max(2*len(d.buf), minReadSize)
+	if p := d.cur; p.headEnd > 0 && p.cl >= 0 {
+		total := p.headEnd + p.cl + 1
+		size = min(max(size, min(total, d.end+growAhead)), total)
+	}
+	size = min(size, max(d.lim.MaxFrameSize, minReadSize))
 	if size <= len(d.buf) {
 		return
 	}

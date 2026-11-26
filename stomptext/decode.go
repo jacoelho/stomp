@@ -234,9 +234,11 @@ func (d *Decoder) checkUnfinished(b []byte) error {
 func (d *Decoder) scanHead(b []byte) (bool, error) {
 	p := &d.cur
 	for i := p.headScan; i < len(b); i++ {
-		if b[i] != '\n' {
-			continue
+		j := bytes.IndexByte(b[i:], '\n')
+		if j < 0 {
+			break
 		}
+		i += j
 		line := b[p.lineStart:i]
 		if p.lineStart > 0 && (len(line) == 0 || (d.ver == Version12 && len(line) == 1 && line[0] == '\r')) {
 			p.headEnd = i + 1

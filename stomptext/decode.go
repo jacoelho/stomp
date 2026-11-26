@@ -157,7 +157,7 @@ func (d *Decoder) fill() error {
 	if d.rerr != nil {
 		return d.endErr()
 	}
-	if d.end == len(d.buf) {
+	if d.end == len(d.buf) || d.frameRunsPastBuffer() {
 		d.makeRoom()
 	}
 	window := d.buf[d.end : d.start+min(len(d.buf)-d.start, max(d.lim.MaxFrameSize, 2))]
@@ -175,6 +175,14 @@ func (d *Decoder) fill() error {
 		}
 	}
 	return io.ErrNoProgress
+}
+
+// frameRunsPastBuffer reports whether the current frame's declared length
+// reaches past the end of the buffer. Moving such a frame to the front early
+// copies only the part already read, not nearly the whole frame.
+func (d *Decoder) frameRunsPastBuffer() bool {
+	p := &d.cur
+	return d.start > 0 && p.headEnd > 0 && p.cl >= 0 && p.headEnd+p.cl+1 > len(d.buf)-d.start
 }
 
 func (d *Decoder) endErr() error {

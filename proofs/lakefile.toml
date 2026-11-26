@@ -1,0 +1,12 @@
+name = "stomp-proofs"
+defaultTargets = ["Stomp", "Axioms", "stomp-oracle"]
+
+[[lean_lib]]
+name = "Stomp"
+
+[[lean_lib]]
+name = "Axioms"
+
+[[lean_exe]]
+name = "stomp-oracle"
+root = "Oracle.Main"

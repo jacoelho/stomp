@@ -441,6 +441,43 @@ func TestLargeFrameThenSmallFrames(t *testing.T) {
 	}
 }
 
+func TestFramesCrossingTheBufferEndKeepTheirBodies(t *testing.T) {
+	var in []byte
+	var want []string
+	for i, n := range []int{3000, 3000, 10000, 5000, 1, 70000, 2500} {
+		body := strings.Repeat(string(rune('a'+i)), n)
+		frame, err := stomptext.AppendFrame(nil, stomptext.Version12, stomptext.Message, stomptext.Headers{
+			{Name: "message-id", Value: fmt.Sprint(i)}, {Name: "content-length", Value: fmt.Sprint(n)},
+		}, []byte(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		in = append(in, frame...)
+		want = append(want, body)
+	}
+	for _, src := range []io.Reader{bytes.NewReader(in), &chunked{in, rand.New(rand.NewPCG(3, 4))}} {
+		got, err := decodeAll(t, src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bodies := make([]string, len(got))
+		for i, d := range got {
+			bodies[i] = d.Body
+		}
+		if !slices.Equal(bodies, want) {
+			t.Errorf("decoded %d frames with body lengths %v; want lengths %v", len(got), lengths(bodies), lengths(want))
+		}
+	}
+}
+
+func lengths(bodies []string) []int {
+	n := make([]int, len(bodies))
+	for i, b := range bodies {
+		n[i] = len(b)
+	}
+	return n
+}
+
 func FuzzDecode(f *testing.F) {
 	f.Add([]byte("MESSAGE\ncontent-length:3\n\na\x00b\x00\nRECEIPT\nreceipt-id:1\n\n\x00"), uint64(1))
 	f.Add([]byte("SEND\nk\\cey:a\\nb\n\nhello\x00"), uint64(2))
